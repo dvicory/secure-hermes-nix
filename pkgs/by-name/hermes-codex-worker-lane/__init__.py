@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import json
-from pathlib import Path
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 from hermes_cli import kanban_db
-from hermes_cli.worker_lanes import WorkerLane, kanban_worker_identity_env
 from hermes_cli.worker_catalogue import WorkerResolutionError, WorkerSpecification
-
+from hermes_cli.worker_lanes import WorkerLane, kanban_worker_identity_env
 
 _WORKER_ENV_KEYS = {
     "CODEX_EXECUTABLE",
@@ -209,7 +208,7 @@ def _declared_lanes() -> list[dict]:
     normalized = []
     for lane in lanes:
         if not isinstance(lane, dict):
-            raise ValueError("each CODEX_WORKER_LANES entry must be an object")
+            raise TypeError("each CODEX_WORKER_LANES entry must be an object")
         required = {
             "name",
             "description",
@@ -228,7 +227,7 @@ def _declared_lanes() -> list[dict]:
         if lane["approvalsReviewer"] not in {"user", "auto_review"}:
             raise ValueError(f"unsupported approvals reviewer for lane {lane['name']!r}")
         if not isinstance(lane["networkAccess"], bool):
-            raise ValueError(f"networkAccess must be boolean for lane {lane['name']!r}")
+            raise TypeError(f"networkAccess must be boolean for lane {lane['name']!r}")
         if lane["approvalPolicy"] != "never":
             raise ValueError(
                 f"detached Codex lane {lane['name']!r} must disable approvals"

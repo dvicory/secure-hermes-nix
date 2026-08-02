@@ -9,14 +9,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-
 from tools.approval import request_tool_approval
 from tools.terminal_tool import (
     clear_task_env_overrides,
     environment_key,
     register_task_authority_binding,
 )
-
 
 _TOOLSET = "sandbox_access"
 _SESSION_ENVIRONMENTS: dict[str, str] = {}
@@ -141,7 +139,7 @@ def _workspace_owner(task_id: Any = None, session_id: Any = None) -> str:
         from gateway.session_context import get_workspace_session_id
 
         owner = get_workspace_session_id("")
-    except Exception:
+    except Exception:  # noqa: BLE001 - missing gateway context is expected outside a session
         owner = ""
     if isinstance(owner, str) and owner.strip():
         return owner

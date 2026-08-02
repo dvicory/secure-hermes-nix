@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
+from pathlib import Path
 from typing import Any
 
 from hermes_cli import kanban_db
@@ -22,7 +22,6 @@ from hermes_cli.worker_catalogue import (
     WorkerSpecification,
     load_current_worker_specification,
 )
-
 
 TERMINAL_STATES = {"blocked", "done", "archived", "triage"}
 
@@ -78,7 +77,7 @@ def _heartbeat(stop: threading.Event, task_id: str, run_id: int) -> None:
                     expected_run_id=run_id,
                 ):
                     return
-        except Exception as exc:  # heartbeat failure must not kill useful work
+        except Exception as exc:  # noqa: BLE001 - heartbeat failure must not kill useful work
             print(f"[codex-worker] heartbeat failed: {exc}", file=sys.stderr, flush=True)
 
 

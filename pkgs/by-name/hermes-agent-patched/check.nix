@@ -2,11 +2,12 @@
   cacert,
   codexWorkerLane,
   patchedHermes,
+  python312Packages,
   sandboxAccess,
   runCommand,
 }:
 runCommand "hermes-agent-patched-check" { } ''
-  export PYTHONPATH=${patchedHermes.patchedSource}
+  export PYTHONPATH=${python312Packages.pytest-asyncio}/lib/python3.12/site-packages:${patchedHermes.patchedSource}:${patchedHermes.hermesVenv}/lib/python3.12/site-packages
   # Nix builders may expose a single-component, read-only HOME such as
   # /homeless-shelter. Native approval tests construct absolute home paths and
   # the detector intentionally ignores degenerate prefixes, so give the test
@@ -24,7 +25,7 @@ runCommand "hermes-agent-patched-check" { } ''
   test "$(readlink -f ${patchedHermes}/share/hermes-agent/plugins)" = \
     "${patchedHermes.patchedSource}/plugins"
 
-  "$python" -m pytest -q -o cache_dir=$TMPDIR/pytest-cache \
+  ${python312Packages.pytest}/bin/pytest -q -o cache_dir=$TMPDIR/pytest-cache \
     ${patchedHermes.patchedSource}/tests/tools/test_approval_choice_result.py \
     ${patchedHermes.patchedSource}/tests/tools/test_request_tool_approval.py \
     ${patchedHermes.patchedSource}/tests/tools/test_approval.py \
@@ -65,7 +66,7 @@ runCommand "hermes-agent-patched-check" { } ''
     ${codexWorkerLane}/share/hermes-agent/plugins/codex-worker-lane/worker.py \
     ${sandboxAccess}/share/hermes-agent/plugins/sandbox-access/__init__.py \
     ${patchedHermes.patchedSource}/plugins/workspace-service/__init__.py
-  "$python" -m ruff check \
+  ${python312Packages.ruff}/bin/ruff check --ignore N999 \
     ${codexWorkerLane.testSource}/__init__.py \
     ${codexWorkerLane.testSource}/worker.py \
     ${codexWorkerLane.testSource}/tests \
