@@ -1,0 +1,28 @@
+schema: spec-driven
+
+context: |
+  This repository packages and configures Secure Hermes Agent infrastructure as a
+  standalone Nix flake. The core must remain independent of the den framework and
+  homelab topology. Consumers provide host/user identities, secret paths,
+  repository/project choices, and deployment policy through typed options.
+
+  Tech stack: Nix flakes, NixOS modules, Home Manager modules, TypeScript/Node,
+  Python plugins, Gondolin/QEMU, SQLite, and Hermes Agent downstream patches.
+
+  Security boundary: model-visible inputs must not select host paths, secrets,
+  authority bindings, resource ceilings, or network policy. Those values are
+  consumer/operator configuration and broker-owned state.
+
+  Preserve the separation between host configuration and user Home Manager
+  configuration for now. Do not redesign deployment orchestration in unrelated
+  changes.
+
+rules:
+  proposal:
+    - State whether the change belongs in portable Secure Hermes or a consumer adapter.
+    - Identify any new secret, host-path, authority, or network-policy surface.
+  design:
+    - Prefer den-free library functions and standard NixOS/Home Manager modules.
+    - Keep homelab-specific names, topology, and encrypted secrets out of this repository.
+  tasks:
+    - Include focused Nix evaluation and package checks for changed contracts.
