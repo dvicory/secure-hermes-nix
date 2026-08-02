@@ -14,6 +14,10 @@
 
     llm-agents.url = "github:numtide/llm-agents.nix";
 
+    gondolin-nix = {
+      url = "github:dvicory/gondolin-nix/secure-terminal-v3";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     quadlet-nix.url = "github:SEIAROTg/quadlet-nix";
   };
