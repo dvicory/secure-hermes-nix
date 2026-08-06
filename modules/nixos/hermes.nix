@@ -207,6 +207,10 @@ let
             RuntimeDirectory = sandboxUser;
             RuntimeDirectoryMode = "0700";
             ReadWritePaths = [ "/var/lib/${sandboxUser}" "/var/cache/${sandboxUser}" "/run/${sandboxUser}" ];
+            # Workspaces are shared with the runner through their setgid
+            # sandbox group. RestrictSUIDSGID blocks the required chmod(2)
+            # with EPERM even though the broker owns the directory.
+            RestrictSUIDSGID = false;
             LoadCredential = lib.optional (brokerCredential != null) "source-hermes-terminal-github:${brokerCredential}";
             DevicePolicy = "closed";
             DeviceAllow = [ "/dev/kvm rw" ];
