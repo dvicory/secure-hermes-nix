@@ -145,13 +145,16 @@ let
         }
       );
       soulFile = pkgs.writeText "${serviceName}-SOUL.md" (
-        profile.settings.soul or ''
-          # Hermes
+        if profile.settings.soul != null then
+          profile.settings.soul
+        else
+          ''
+            # Hermes
 
-          You are a configured Secure Hermes assistant. Follow the operator's
-          declared worker, project, approval, and sandbox policy. Ask before
-          taking external actions and never bypass the configured review path.
-        ''
+            You are a configured Secure Hermes assistant. Follow the operator's
+            declared worker, project, approval, and sandbox policy. Ask before
+            taking external actions and never bypass the configured review path.
+          ''
       );
       commonVolumes = [
         "${serviceName}-state:${containerHome}/.hermes"
@@ -199,6 +202,25 @@ let
       // lib.optionalAttrs codexEnabled {
         CODEX_EXECUTABLE = "${codexPackage}/bin/codex";
         BWRAP_EXECUTABLE = "${pkgs.bubblewrap}/bin/bwrap";
+        BASH_EXECUTABLE = "${pkgs.bash}/bin/bash";
+        ENV_EXECUTABLE = "${pkgs.coreutils}/bin/env";
+        CODEX_RUNTIME_PATH = lib.makeBinPath [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.file
+          pkgs.findutils
+          pkgs.gawk
+          pkgs.gh
+          pkgs.git
+          pkgs.gnugrep
+          pkgs.gnused
+          pkgs.gnutar
+          pkgs.gzip
+          pkgs.jq
+          pkgs.python3
+          pkgs.ripgrep
+        ];
         CODEX_WORKER_LANES = builtins.toJSON codexLanes;
       }
       // lib.optionalAttrs codexBrokerSharing {
@@ -228,6 +250,7 @@ let
             volumes = commonVolumes;
             networks = lib.optional hasTailscale "container:${tailscaleName}";
             addGroups = lib.optional (secure.enable && secure.backend == "gondolin" && codexEnabled) "keep-groups";
+            unmask = if codexBrokerSharing then "ALL" else null;
           };
         };
       }

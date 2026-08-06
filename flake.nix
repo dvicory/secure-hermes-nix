@@ -38,6 +38,7 @@
         ./modules/packages.nix
         ./modules/checks.nix
         ./modules/tests/secure-terminal-policy.nix
+        ./modules/tests/hermes-worker-lanes.nix
       ];
     };
 }

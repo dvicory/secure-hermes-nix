@@ -41,6 +41,7 @@ let
     gnused
     gnutar
     gzip
+    python3
     ripgrep
   ];
   entrypoint = pkgs.runCommand "${imageName}-entrypoint" { } ''
