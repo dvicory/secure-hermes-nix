@@ -218,7 +218,7 @@ let
         maxInputBytes = floor.maxInputBytes;
         maxFileBytes = floor.maxInputBytes;
         maxListEntries = 4096;
-        maxConcurrentExecs = 1;
+        maxConcurrentExecs = 2;
       };
     };
 
@@ -372,7 +372,7 @@ in
         maxInputBytes = floor.maxInputBytes;
         maxFileBytes = floor.maxInputBytes;
         maxListEntries = 4096;
-        maxConcurrentExecs = 1;
+        maxConcurrentExecs = 2;
         timeoutMs = floor.maxResources.maxCommandMs;
         outputBytes = floor.maxResources.maxOutputBytes;
         inputBytes = floor.maxInputBytes;
