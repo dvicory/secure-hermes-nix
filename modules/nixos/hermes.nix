@@ -66,10 +66,12 @@ let
             worklanes = cfg.worklanes;
             inherit laneAuthorities maximum projectSources;
             workspaceHandoffEnabled = cfg.workspaceHandoff.enable;
-            workspaceHandoffLimits = cfg.workspaceHandoff.handoffLimits;
+            workspaceHandoffLimits =
+              policyLib.workspaceHandoffLimitCeilings // cfg.workspaceHandoff.handoffLimits;
             sourceRevisions = self.lib.catalogue.sourceRevisionsFor projectSources;
             providerRevisions = self.lib.catalogue.providerRevisionsFor self.lib.catalogue.providerContracts;
-            projectMaterializationLimits = cfg.projectMaterializationLimits;
+            projectMaterializationLimits =
+              policyLib.projectMaterializationLimitCeilings // cfg.projectMaterializationLimits;
           }
         else
           null;
@@ -102,7 +104,7 @@ let
         PrivateMounts = true;
       };
     in
-    lib.mkMerge [
+    lib.recursiveUpdate (lib.recursiveUpdate
       {
         assertions = lib.optional (gondolin && sandboxUid != null) {
           assertion = sandboxUid >= 1050 && sandboxUid < 10000;
@@ -123,7 +125,7 @@ let
           subGidRanges = [ { startGid = sandboxSubIdStart; count = 65536; } ];
         };
       }
-      (lib.mkIf podman {
+      (lib.optionalAttrs podman {
         systemd.sockets.${sandboxEngine} = {
           description = "${serviceName} isolated terminal Podman API";
           wantedBy = [ "sockets.target" ];
@@ -157,8 +159,8 @@ let
             RuntimeDirectoryMode = "0700";
           };
         };
-      })
-      (lib.mkIf gondolin {
+      }))
+      (lib.optionalAttrs gondolin {
         systemd.tmpfiles.rules = [ "d /run/${brokerName} 0711 root root -" ];
         systemd.sockets.${executionSocketName} = {
           wantedBy = [ "sockets.target" ];
@@ -235,8 +237,7 @@ let
             TimeoutStopSec = 70;
           };
         };
-      })
-    ];
+      });
   profiles = config.services.hermes.instances;
   generated = lib.mapAttrsToList mkInstance profiles;
   mergeAttr =

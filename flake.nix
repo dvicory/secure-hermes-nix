@@ -37,6 +37,7 @@
       imports = [
         ./modules/packages.nix
         ./modules/checks.nix
+        ./modules/tests/secure-terminal-policy.nix
       ];
     };
 }
