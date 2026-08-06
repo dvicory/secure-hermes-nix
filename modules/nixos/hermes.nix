@@ -216,7 +216,15 @@ let
             DeviceAllow = [ "/dev/kvm rw" ];
             RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" "AF_NETLINK" ];
             SystemCallArchitectures = "native";
-            SystemCallFilter = [ "@system-service" "~@privileged" ];
+            SystemCallFilter = [
+              "@system-service"
+              "~@privileged"
+              # libuv's copyFile preserves source ownership with fchown(2).
+              # The unprivileged broker lacks CAP_CHOWN, so normal DAC
+              # restrictions still apply; permit only this syscall rather
+              # than weakening the privileged-syscall group exclusion.
+              "fchown"
+            ];
             KillMode = "mixed";
             TimeoutStopSec = 70;
           };
