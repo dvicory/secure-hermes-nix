@@ -146,6 +146,9 @@ let
     pkgs.jq
     pkgs.cacert
     pkgs.docker-client
+    # External Codex workers use a per-process mount namespace so broker
+    # storage is visible only through the canonical /workspace planes.
+    pkgs.bubblewrap
     codexWorkerLane
     entrypoint
   ] ++ lib.optional (codexPackage != null) codexPackage ++ terminalBaseline;

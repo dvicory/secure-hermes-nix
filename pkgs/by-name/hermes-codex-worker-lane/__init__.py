@@ -13,8 +13,10 @@ from hermes_cli.worker_catalogue import WorkerResolutionError, WorkerSpecificati
 from hermes_cli.worker_lanes import WorkerLane, kanban_worker_identity_env
 
 _WORKER_ENV_KEYS = {
+    "BWRAP_EXECUTABLE",
     "CODEX_EXECUTABLE",
     "CODEX_HOME",
+    "CODEX_WORKER_LANES",
     "GONDOLIN_EFFECT_CONTROL_SOCKET",
     "HERMES_HOME",
     "HERMES_BUNDLED_PLUGINS",

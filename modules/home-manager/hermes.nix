@@ -13,6 +13,12 @@ let
       codex = settings.codex or { };
       codexEnabled = codex.enable or false;
       serviceName = "hermes-${profile.instance}";
+      sandboxUser = "${serviceName}-sandbox";
+      # Trusted external Codex workers consume broker workspaces through a
+      # group-shared host bind mount, never through the guest VFS.
+      codexBrokerSharing = codexEnabled && secure.enable && secure.backend == "gondolin";
+      brokerWorkspaceDataHost = "/var/lib/${sandboxUser}/workspaces/data";
+      brokerWorkspaceDataContainer = "${containerHome}/broker-workspaces";
       containerHome = "/home/hermes";
       workspaceRoot = "${containerHome}/workspace";
       project = profile.project;
@@ -28,8 +34,7 @@ let
       hasTailscale = profile.secrets.tailscale != null;
       hasEnvSecret = profile.secrets.env != null;
       hasGithubPat = profile.secrets.githubPat != null;
-      codexLanes = lib.mapAttrsToList
-        (name: lane: {
+      codexLanes = lib.mapAttrsToList        (name: lane: {
           inherit name;
           inherit (lane) description maxConcurrency;
           approvalPolicy = lane.policy.approvalPolicy;
@@ -61,7 +66,7 @@ let
             if secure.enable && secure.backend == "gondolin" then
               {
                 backend = "gondolin";
-                cwd = "/workspace";
+                cwd = "/workspace/work";
                 timeout = 180;
                 lifetime_seconds = secure.lifetimeSeconds;
               }
@@ -159,6 +164,8 @@ let
       ++ lib.optional (secure.enable && secure.backend == "podman") "${sandboxSocketHost}:${sandboxSocketContainer}"
       ++ lib.optional (secure.enable && secure.backend == "gondolin")
         "/run/${brokerName}:${brokerSocketContainerDirectory}:ro"
+      ++ lib.optional codexBrokerSharing
+        "${brokerWorkspaceDataHost}:${brokerWorkspaceDataContainer}"
       ++ lib.optional codexEnabled "${serviceName}-codex:${containerHome}/.codex"
       ++ lib.optional codexEnabled "${codexWorkerLane}/share/hermes-agent/external-skills:${codexSkillRoot}:ro";
       containerEnvironment = {
@@ -191,7 +198,13 @@ let
       }
       // lib.optionalAttrs codexEnabled {
         CODEX_EXECUTABLE = "${codexPackage}/bin/codex";
+        BWRAP_EXECUTABLE = "${pkgs.bubblewrap}/bin/bwrap";
         CODEX_WORKER_LANES = builtins.toJSON codexLanes;
+      }
+      // lib.optionalAttrs codexBrokerSharing {
+        # Host-side broker workspace data root; the Codex plugin maps each
+        # durable workspace binding to its work plane below this directory.
+        HERMES_BROKER_WORKSPACE_DATA = brokerWorkspaceDataContainer;
       };
     in
     lib.optionalAttrs profile.enable {

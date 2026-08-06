@@ -11,6 +11,10 @@ let
       enabled = profile.enable;
       gondolin = enabled && cfg.enable && cfg.backend == "gondolin";
       podman = enabled && cfg.enable && cfg.backend == "podman";
+      codexEnabled = (profile.settings.codex or { }).enable or false;
+      # External Codex workers read broker workspaces through the setgid
+      # sandbox group; the runner identity must belong to it.
+      codexBrokerSharing = codexEnabled && gondolin;
       serviceName = "hermes-${profile.instance}";
       sandboxUser = "${serviceName}-sandbox";
       sandboxEngine = "${serviceName}-sandbox-engine";
@@ -104,7 +108,9 @@ let
           assertion = sandboxUid >= 1050 && sandboxUid < 10000;
           message = "${serviceName}: sandbox UID must be a stable non-system UID";
         };
-        users.groups.${sandboxUser} = { };
+        users.groups.${sandboxUser} = {
+          members = lib.optional codexBrokerSharing profile.userName;
+        };
         users.users.${sandboxUser} = {
           isNormalUser = true;
           group = sandboxUser;
