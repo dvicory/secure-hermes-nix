@@ -118,6 +118,8 @@
         minimal = assetManifest "minimal" "fixture-build-minimal";
       };
 
+      effectBroker = pkgs.callPackage (self + "/pkgs/by-name/gondolin-broker-effect/package.nix") { };
+
       effectPolicy = policyLib.mkEffectPolicy {
         inherit pkgs;
         assets = lib.mapAttrs (_: asset: { path = "${asset}"; }) assets;
@@ -274,5 +276,40 @@
         pkgs.runCommand "secure-terminal-policy" { } ''
           touch $out
         '';
+      checks.secure-terminal-effect-policy-http =
+        pkgs.runCommand "secure-terminal-effect-policy-http"
+          {
+            nativeBuildInputs = [ pkgs.nodejs_24 ];
+            policyJson = "${effectPolicy.json}";
+          }
+          ''
+            export GONDOLIN_EFFECT_POLICY="$policyJson"
+            export GONDOLIN_EFFECT_PROFILE=hermes-fixture
+            export GONDOLIN_EFFECT_STATE_DIR="$TMPDIR/state"
+            export GONDOLIN_EFFECT_SOCKET="$TMPDIR/broker.sock"
+            export GONDOLIN_EFFECT_CONTROL_SOCKET="$TMPDIR/control.sock"
+            export GONDOLIN_EFFECT_WORKSPACE_HANDOFF=true
+            node ${effectBroker}/lib/node_modules/gondolin-broker-effect/dist/test-main.js >"$TMPDIR/broker.log" 2>&1 &
+            broker_pid=$!
+            trap 'kill "$broker_pid" 2>/dev/null || true' EXIT
+            for _ in $(seq 1 100); do
+              [ -S "$GONDOLIN_EFFECT_SOCKET" ] && [ -S "$GONDOLIN_EFFECT_CONTROL_SOCKET" ] && break
+              if ! kill -0 "$broker_pid"; then
+                cat "$TMPDIR/broker.log"
+                exit 1
+              fi
+              sleep 0.05
+            done
+            [ -S "$GONDOLIN_EFFECT_SOCKET" ]
+            [ -S "$GONDOLIN_EFFECT_CONTROL_SOCKET" ]
+            if ! node ${self + "/modules/tests/secure-terminal-effect-policy-http.mjs"}; then
+              cat "$TMPDIR/broker.log"
+              exit 1
+            fi
+            kill "$broker_pid"
+            wait "$broker_pid" || true
+            trap - EXIT
+            touch $out
+          '';
     };
 }
