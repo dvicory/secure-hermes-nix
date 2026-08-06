@@ -175,7 +175,8 @@ pkgs.dockerTools.buildLayeredImage {
     inherit env;
   };
   fakeRootCommands = ''
-    mkdir -p ./usr/bin ./home/hermes/.hermes ./home/hermes/workspace
+    mkdir -p ./usr/bin ./home/hermes/.hermes ./home/hermes/workspace ./tmp
+    chmod 1777 ./tmp
     ln -s /bin/env ./usr/bin/env
   '';
 }
