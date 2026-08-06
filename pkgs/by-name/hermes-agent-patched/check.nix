@@ -1,12 +1,13 @@
 {
   cacert,
   codexWorkerLane,
+  git,
   patchedHermes,
   python312Packages,
   sandboxAccess,
   runCommand,
 }:
-runCommand "hermes-agent-patched-check" { } ''
+runCommand "hermes-agent-patched-check" { nativeBuildInputs = [ git ]; } ''
   export PYTHONPATH=${python312Packages.pytest-asyncio}/lib/python3.12/site-packages:${patchedHermes.patchedSource}:${patchedHermes.hermesVenv}/lib/python3.12/site-packages
   # Nix builders may expose a single-component, read-only HOME such as
   # /homeless-shelter. Native approval tests construct absolute home paths and
