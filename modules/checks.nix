@@ -22,6 +22,7 @@
         workerLanes.research = {
           description = "bounded research";
           runtime = "hermes";
+          policy.approvalPolicy = "never";
           workspace.projectMode = "none";
           workspace.inputs = { };
         };
