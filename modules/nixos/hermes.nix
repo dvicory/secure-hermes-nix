@@ -201,7 +201,6 @@ let
             GONDOLIN_EFFECT_SOCKET = executionSocketPath;
             GONDOLIN_EFFECT_CONTROL_SOCKET = controlSocketPath;
             GONDOLIN_EFFECT_WORKSPACE_HANDOFF = if cfg.workspaceHandoff.enable then "true" else "false";
-            GONDOLIN_DEBUG = "protocol,net";
           };
           serviceConfig = commonSecurity // {
             Type = "exec";
