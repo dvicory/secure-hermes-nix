@@ -17,6 +17,7 @@ let
       ./kanban-platform-toolsets.patch
       # Secure-terminal and Gondolin execution backend.
       ./secure-terminal-isolation.patch
+      ./file-tools-test-isolation.patch
       ./gondolin-backend.patch
       # Hashless Gondolin workspace broker lifecycle, operation journal, and
       # immutable selected-output handoff.
