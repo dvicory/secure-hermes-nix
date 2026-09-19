@@ -12,8 +12,12 @@ runCommand "hermes-agent-patched-check" {
     git
     patchedHermes.hermesVenv
   ];
+  testPython = python312Packages.python.withPackages (ps: with ps; [
+    pytest
+    pytest-asyncio
+  ]);
 } ''
-  export PYTHONPATH=${python312Packages.pytest-asyncio}/lib/python3.12/site-packages:${patchedHermes.patchedSource}:${patchedHermes.hermesVenv}/lib/python3.12/site-packages
+  export PYTHONPATH=$testPython/lib/python3.12/site-packages:${patchedHermes.patchedSource}:${patchedHermes.hermesVenv}/lib/python3.12/site-packages
   # Nix builders may expose a single-component, read-only HOME such as
   # /homeless-shelter. Native approval tests construct absolute home paths and
   # the detector intentionally ignores degenerate prefixes, so give the test
@@ -26,12 +30,12 @@ runCommand "hermes-agent-patched-check" {
   # prompt-construction tests initialize an OpenAI client and validate the CA
   # path even though they make no network requests.
   export SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt
-  python=${patchedHermes.hermesVenv}/bin/python3
+  python=$testPython/bin/python3
   export HERMES_SANDBOX_ACCESS_SOURCE=${sandboxAccess.testSource}
   test "$(readlink -f ${patchedHermes}/share/hermes-agent/plugins)" = \
     "${patchedHermes.patchedSource}/plugins"
 
-  ${python312Packages.pytest}/bin/pytest -q -o cache_dir=$TMPDIR/pytest-cache \
+  "$python" -m pytest -q -o cache_dir=$TMPDIR/pytest-cache \
     ${patchedHermes.patchedSource}/tests/tools/test_approval_choice_result.py \
     ${patchedHermes.patchedSource}/tests/tools/test_request_tool_approval.py \
     ${patchedHermes.patchedSource}/tests/tools/test_approval.py \
