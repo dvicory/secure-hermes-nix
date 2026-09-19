@@ -1,8 +1,9 @@
 --- a/tests/tools/test_file_tools_cwd_resolution.py
 +++ b/tests/tools/test_file_tools_cwd_resolution.py
-@@ -38,6 +38,7 @@
+@@ -38,6 +38,8 @@
      monkeypatch.chdir(decoy)
      # No session cwd recorded yet (fresh-session condition).
      monkeypatch.setattr(terminal_tool, "_session_cwd", {})
++    monkeypatch.setattr(terminal_tool, "_active_environments", {})
 +    monkeypatch.setattr(ft, "_file_ops_cache", {})
      return workspace, decoy
