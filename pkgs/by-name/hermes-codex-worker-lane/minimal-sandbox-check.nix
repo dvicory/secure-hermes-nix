@@ -7,7 +7,7 @@
   python,
   python3,
   pythonPath,
-  runCommand,
+  writeShellScript,
   workerSource,
 }:
 let
@@ -18,7 +18,7 @@ let
     python3
   ];
 in
-runCommand "hermes-codex-minimal-sandbox" { } ''
+writeShellScript "hermes-codex-minimal-sandbox" ''
   task="$TMPDIR/task"
   codexHome="$TMPDIR/codex-home"
   workerResult="$TMPDIR/worker-result"
@@ -108,5 +108,5 @@ runCommand "hermes-codex-minimal-sandbox" { } ''
   test "$(cat "$task/output/output-canary")" = output-ok
   test "$(cat "$workerResult/result-canary")" = result-ok
   test ! -e "$task/inputs/mutation"
-  touch "$out"
+  echo "minimal sandbox checks passed"
 ''

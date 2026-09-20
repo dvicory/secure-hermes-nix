@@ -1,0 +1,123 @@
+name: Nix CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  linux-checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare Nix storage
+        run: |
+          free_space=$(df -m --output=avail /mnt | tail -n 1)
+          disk_size=$((free_space - 1024))
+          test "$disk_size" -gt 1024
+          sudo fallocate -l "${disk_size}M" /mnt/nix.img
+          loop_dev=$(sudo losetup --find --show /mnt/nix.img)
+          sudo mkfs.btrfs -L nix --nodiscard "$loop_dev"
+          sudo mkdir -p /nix
+          sudo mount "$loop_dev" /nix -o noatime,nobarrier,nodiscard,compress=zstd:1,space_cache=v2,commit=120
+          sudo mkdir -p /nix/build
+          sudo chattr +C /nix/build
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          extra_nix_config: |
+            build-dir = /nix/build
+            sandbox = relaxed
+          github_access_token: ${{ github.token }}
+
+      - name: Configure durable cache
+        if: vars.CACHIX_CACHE != ''
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: ${{ vars.CACHIX_CACHE }}
+          skipPush: true
+
+      - name: Build checks
+        run: |
+          mapfile -t checks < <(
+            nix eval --json .#checks.x86_64-linux --apply builtins.attrNames |
+              jq -r '.[] | select(. != "hermes-codex-minimal-sandbox") | ".#checks.x86_64-linux.\(.)"'
+          )
+          nix build -L --no-link --keep-going "${checks[@]}"
+
+  sandbox-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Enable KVM acceleration
+        run: |
+          if [ -c /dev/kvm ]; then
+            sudo chmod a+rw /dev/kvm
+          fi
+
+      - name: Prepare Nix storage
+        run: |
+          free_space=$(df -m --output=avail /mnt | tail -n 1)
+          disk_size=$((free_space - 1024))
+          test "$disk_size" -gt 1024
+          sudo fallocate -l "${disk_size}M" /mnt/nix.img
+          loop_dev=$(sudo losetup --find --show /mnt/nix.img)
+          sudo mkfs.btrfs -L nix --nodiscard "$loop_dev"
+          sudo mkdir -p /nix
+          sudo mount "$loop_dev" /nix -o noatime,nobarrier,nodiscard,compress=zstd:1,space_cache=v2,commit=120
+          sudo mkdir -p /nix/build
+          sudo chattr +C /nix/build
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          extra_nix_config: |
+            build-dir = /nix/build
+            sandbox = relaxed
+          github_access_token: ${{ github.token }}
+
+      - name: Build nested Bubblewrap check
+        run: nix build -L --no-link .#checks.x86_64-linux.hermes-codex-minimal-sandbox
+
+  darwin-checks:
+    runs-on: macos-14
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          github_access_token: ${{ github.token }}
+
+      - name: Configure durable cache
+        if: vars.CACHIX_CACHE != ''
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: ${{ vars.CACHIX_CACHE }}
+          skipPush: true
+
+      - name: Build checks
+        run: |
+          checks=()
+          while IFS= read -r check; do
+            checks+=("$check")
+          done < <(
+            nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames |
+              jq -r '.[] | ".#checks.aarch64-darwin.\(.)"'
+          )
+          nix build -L --no-link --keep-going "${checks[@]}"

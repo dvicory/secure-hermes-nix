@@ -1,0 +1,33 @@
+--- a/tests/tools/test_secure_terminal_scope.py
++++ b/tests/tools/test_secure_terminal_scope.py
+@@ -293,6 +293,8 @@
+         def cleanup(self):
+             self.cleaned = True
+ 
++    registry = process_registry.ProcessRegistry()
++    monkeypatch.setattr(process_registry, "process_registry", registry)
+     terminal_tool._active_environments.clear()
+     terminal_tool._last_activity.clear()
+     terminal_tool._environment_owners.clear()
+@@ -300,10 +302,10 @@
+     terminal_tool._active_environments["default"] = env
+     terminal_tool.remember_environment_owner("default", "session-a")
+     terminal_tool.remember_environment_owner("default", "session-b")
+-    proc_a = process_registry.process_registry.spawn_local(
++    proc_a = registry.spawn_local(
+         "sleep 30", cwd="/tmp", task_id="default", session_key="session-a"
+     )
+-    proc_b = process_registry.process_registry.spawn_local(
++    proc_b = registry.spawn_local(
+         "sleep 30", cwd="/tmp", task_id="default", session_key="session-b"
+     )
+ 
+@@ -333,7 +335,7 @@
+         assert proc_b.exited
+         assert "default" not in terminal_tool._active_environments
+     finally:
+-        process_registry.process_registry.kill_all()
++        registry.kill_all()
+         terminal_tool._active_environments.clear()
+         terminal_tool._last_activity.clear()
+         terminal_tool._environment_owners.clear()

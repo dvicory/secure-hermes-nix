@@ -22,29 +22,33 @@
           hermesAgent = hermesWithTestDependencies;
           src = inputs.hermes-agent;
         };
-        codexWorkerLane = pkgs.callPackage (self + "/pkgs/by-name/hermes-codex-worker-lane/package.nix") { };
-        customCodexWorkerLane = pkgs.callPackage (self + "/pkgs/by-name/hermes-codex-worker-lane/package.nix") {
-          lanes = [
+        codexWorkerLane = pkgs.callPackage (
+          self + "/pkgs/by-name/hermes-codex-worker-lane/package.nix"
+        ) { };
+        customCodexWorkerLane =
+          pkgs.callPackage (self + "/pkgs/by-name/hermes-codex-worker-lane/package.nix")
             {
-              name = "architecture-review";
-              description = "architecture decisions that require no file changes";
-              approvalPolicy = "never";
-              approvalsReviewer = "user";
-              sandboxMode = "read-only";
-              networkAccess = false;
-              maxConcurrency = 1;
-            }
-            {
-              name = "code-with-network";
-              description = "implementation that needs access to declared network services";
-              approvalPolicy = "never";
-              approvalsReviewer = "user";
-              sandboxMode = "workspace-write";
-              networkAccess = true;
-              maxConcurrency = 1;
-            }
-          ];
-        };
+              lanes = [
+                {
+                  name = "architecture-review";
+                  description = "architecture decisions that require no file changes";
+                  approvalPolicy = "never";
+                  approvalsReviewer = "user";
+                  sandboxMode = "read-only";
+                  networkAccess = false;
+                  maxConcurrency = 1;
+                }
+                {
+                  name = "code-with-network";
+                  description = "implementation that needs access to declared network services";
+                  approvalPolicy = "never";
+                  approvalsReviewer = "user";
+                  sandboxMode = "workspace-write";
+                  networkAccess = true;
+                  maxConcurrency = 1;
+                }
+              ];
+            };
         settingsOptions = self.lib.settings;
         catalogueLib = self.lib.catalogue;
         evalWorkerLaneSettings =
@@ -167,7 +171,8 @@
             lib.recursiveUpdate validWorkerLane {
               projectSources.repository.credential.secretRef = "/run/secrets/token";
             }
-          )).config.settings) true
+          )).config.settings
+          ) true
         );
         invalidMemoryMode = builtins.tryEval (
           builtins.deepSeq ((evalWorkerLaneSettings {
@@ -319,10 +324,8 @@
               }
             ];
           }).config;
-        fixtureContainer =
-          fixtureHome.virtualisation.quadlet.containers.hermes-fixture.containerConfig;
-        plainContainer =
-          fixtureHome.virtualisation.quadlet.containers.hermes-plain.containerConfig;
+        fixtureContainer = fixtureHome.virtualisation.quadlet.containers.hermes-fixture.containerConfig;
+        plainContainer = fixtureHome.virtualisation.quadlet.containers.hermes-plain.containerConfig;
         fixtureCodexLanes = builtins.fromJSON fixtureContainer.environments.CODEX_WORKER_LANES;
         fixtureVolumes = fixtureContainer.volumes;
         plainVolumes = plainContainer.volumes;
@@ -331,68 +334,88 @@
       lib.recursiveUpdate
         (lib.recursiveUpdate
           {
-          # Exercise non-default lane names and descriptions independently from
-          # the generic patched-Hermes/worker runtime test below.
-          checks.hermes-codex-worker-lane-custom-skill = customCodexWorkerLane;
-          checks.hermes-worker-lane-options =
-            assert validWorkerLane.instance == "test";
-            assert validWorkerLane.workerLanes.project.memory == "disabled";
-            assert validWorkerLane.workerLanes.project.maxConcurrency == 2;
-            assert !invalidMemoryMode.success;
-            assert !invalidUnknownSetting.success;
-            assert builtins.stringLength validCatalogue.revision == 64;
-            assert validCatalogue.revision == (catalogueLib.resolve validWorkerLane).revision;
-            assert builtins.stringLength validCatalogue.sourceRevisions.repository == 64;
-            assert builtins.stringLength validCatalogue.providerRevisions.broker-project == 64;
-            assert !invalidBoardReference.success;
-            assert !invalidPermissionEscalation.success;
-            assert !invalidSourceUpstream.success;
-            assert !invalidStoreUpstream.success;
-            assert !invalidUnknownRepository.success;
-            assert !invalidCredentialRef.success;
-            assert !invalidInputCeilings.success;
-            assert !invalidDetachedApproval.success;
-            assert validCatalogue.workerLanes.project.workspace.inputs.maxInputs == 4;
-            assert validCatalogue.workerLanes.project.workspace.inputs.maxInputBytes == 16777216;
-            pkgs.runCommand "hermes-worker-lane-options" { } "touch $out";
-          checks.hermes-worker-lane =
-            pkgs.callPackage (self + "/pkgs/by-name/hermes-agent-patched/check.nix")
-              {
-                inherit codexWorkerLane patchedHermes;
-                sandboxAccess = pkgs.callPackage (self + "/pkgs/by-name/hermes-sandbox-access/package.nix") { };
+            # Exercise non-default lane names and descriptions independently from
+            # the generic patched-Hermes/worker runtime test below.
+            checks.hermes-codex-worker-lane-custom-skill = customCodexWorkerLane;
+            checks.hermes-worker-lane-options =
+              assert validWorkerLane.instance == "test";
+              assert validWorkerLane.workerLanes.project.memory == "disabled";
+              assert validWorkerLane.workerLanes.project.maxConcurrency == 2;
+              assert !invalidMemoryMode.success;
+              assert !invalidUnknownSetting.success;
+              assert builtins.stringLength validCatalogue.revision == 64;
+              assert validCatalogue.revision == (catalogueLib.resolve validWorkerLane).revision;
+              assert builtins.stringLength validCatalogue.sourceRevisions.repository == 64;
+              assert builtins.stringLength validCatalogue.providerRevisions.broker-project == 64;
+              assert !invalidBoardReference.success;
+              assert !invalidPermissionEscalation.success;
+              assert !invalidSourceUpstream.success;
+              assert !invalidStoreUpstream.success;
+              assert !invalidUnknownRepository.success;
+              assert !invalidCredentialRef.success;
+              assert !invalidInputCeilings.success;
+              assert !invalidDetachedApproval.success;
+              assert validCatalogue.workerLanes.project.workspace.inputs.maxInputs == 4;
+              assert validCatalogue.workerLanes.project.workspace.inputs.maxInputBytes == 16777216;
+              pkgs.runCommand "hermes-worker-lane-options" { } "touch $out";
+            checks.hermes-worker-lane =
+              pkgs.callPackage (self + "/pkgs/by-name/hermes-agent-patched/check.nix")
+                {
+                  inherit codexWorkerLane patchedHermes;
+                  sandboxAccess = pkgs.callPackage (self + "/pkgs/by-name/hermes-sandbox-access/package.nix") { };
+                };
+          }
+          (
+            lib.optionalAttrs (lib.hasSuffix "-linux" system) {
+              # The quadlet wiring eval instantiates the linux-only Codex package.
+              checks.hermes-worker-lane-hm-wiring =
+                assert lib.all (lane: lane.networkAccess) fixtureCodexLanes;
+                assert lib.all (lane: lane.approvalPolicy == "never") fixtureCodexLanes;
+                # Trusted external Codex workers consume broker workspaces through
+                # a group-shared host bind mount, never through the guest VFS.
+                assert fixtureContainer.unmask == "ALL";
+                assert !(fixtureContainer.privileged or false);
+                assert !(builtins.elem "CAP_SYS_ADMIN" (fixtureContainer.addCapabilities or [ ]));
+                assert lib.elem "keep-groups" fixtureContainer.addGroups;
+                assert lib.elem brokerWorkspaceMount fixtureVolumes;
+                assert
+                  fixtureContainer.environments.HERMES_BROKER_WORKSPACE_DATA == "/home/hermes/broker-workspaces";
+                assert lib.hasPrefix "/nix/store/" fixtureContainer.environments.BWRAP_EXECUTABLE;
+                assert lib.hasPrefix "/nix/store/" fixtureContainer.environments.BASH_EXECUTABLE;
+                assert lib.hasPrefix "/nix/store/" fixtureContainer.environments.ENV_EXECUTABLE;
+                assert lib.hasInfix "/nix/store/" fixtureContainer.environments.CODEX_RUNTIME_PATH;
+                assert !(plainContainer.environments ? HERMES_BROKER_WORKSPACE_DATA);
+                assert !(plainContainer.environments ? BWRAP_EXECUTABLE);
+                assert plainContainer.unmask == null;
+                assert !(lib.any (lib.hasPrefix "/var/lib/hermes-plain-sandbox/workspaces/") plainVolumes);
+                pkgs.runCommand "hermes-worker-lane-hm-wiring" { } "touch $out";
+            }
+          )
+        )
+        (
+          lib.optionalAttrs (system == "x86_64-linux") {
+            checks.hermes-codex-minimal-sandbox =
+              let
+                sandboxCheck =
+                  pkgs.callPackage (self + "/pkgs/by-name/hermes-codex-worker-lane/minimal-sandbox-check.nix")
+                    {
+                      python = patchedHermes.hermesVenv;
+                      pythonPath = patchedHermes.patchedSource;
+                      workerSource = codexWorkerLane.testSource;
+                    };
+              in
+              pkgs.testers.runNixOSTest {
+                name = "hermes-codex-minimal-sandbox";
+                nodes.machine.virtualisation = {
+                  cores = 2;
+                  memorySize = 2048;
+                };
+                testScript = ''
+                  machine.start()
+                  machine.succeed("${sandboxCheck}")
+                '';
               };
-        }
-        (lib.optionalAttrs (lib.hasSuffix "-linux" system) {
-          # The quadlet wiring eval instantiates the linux-only Codex package.
-          checks.hermes-worker-lane-hm-wiring =
-            assert lib.all (lane: lane.networkAccess) fixtureCodexLanes;
-            assert lib.all (lane: lane.approvalPolicy == "never") fixtureCodexLanes;
-            # Trusted external Codex workers consume broker workspaces through
-            # a group-shared host bind mount, never through the guest VFS.
-            assert fixtureContainer.unmask == "ALL";
-            assert !(fixtureContainer.privileged or false);
-            assert !(builtins.elem "CAP_SYS_ADMIN" (fixtureContainer.addCapabilities or [ ]));
-            assert lib.elem "keep-groups" fixtureContainer.addGroups;
-            assert lib.elem brokerWorkspaceMount fixtureVolumes;
-            assert fixtureContainer.environments.HERMES_BROKER_WORKSPACE_DATA == "/home/hermes/broker-workspaces";
-            assert lib.hasPrefix "/nix/store/" fixtureContainer.environments.BWRAP_EXECUTABLE;
-            assert lib.hasPrefix "/nix/store/" fixtureContainer.environments.BASH_EXECUTABLE;
-            assert lib.hasPrefix "/nix/store/" fixtureContainer.environments.ENV_EXECUTABLE;
-            assert lib.hasInfix "/nix/store/" fixtureContainer.environments.CODEX_RUNTIME_PATH;
-            assert !(plainContainer.environments ? HERMES_BROKER_WORKSPACE_DATA);
-            assert !(plainContainer.environments ? BWRAP_EXECUTABLE);
-            assert plainContainer.unmask == null;
-            assert !(lib.any (lib.hasPrefix "/var/lib/hermes-plain-sandbox/workspaces/") plainVolumes);
-            pkgs.runCommand "hermes-worker-lane-hm-wiring" { } "touch $out";
-        }))
-        (lib.optionalAttrs (system == "x86_64-linux") {
-          checks.hermes-codex-minimal-sandbox = pkgs.callPackage (
-            self + "/pkgs/by-name/hermes-codex-worker-lane/minimal-sandbox-check.nix"
-          ) {
-            python = patchedHermes.hermesVenv;
-            pythonPath = patchedHermes.patchedSource;
-            workerSource = codexWorkerLane.testSource;
-          };
-        })
+          }
+        )
     );
 }

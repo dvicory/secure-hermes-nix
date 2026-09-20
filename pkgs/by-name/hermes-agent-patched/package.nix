@@ -18,6 +18,8 @@ let
       # Secure-terminal and Gondolin execution backend.
       ./secure-terminal-isolation.patch
       ./file-tools-test-isolation.patch
+      ./process-registry-test-isolation.patch
+      ./local-file-reads.patch
       ./gondolin-backend.patch
       # Hashless Gondolin workspace broker lifecycle, operation journal, and
       # immutable selected-output handoff.
