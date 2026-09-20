@@ -1,0 +1,15 @@
+--- a/tools/environments/local.py
++++ b/tools/environments/local.py
+@@ -1273,6 +1273,13 @@
+         super().__init__(cwd=cwd, timeout=timeout, env=env)
+         self.init_session()
+ 
++    def read_file_bytes(self, path: str, max_bytes: int = 64 * 1024 * 1024) -> bytes:
++        with open(path, "rb") as handle:
++            data = handle.read(max_bytes + 1)
++        if len(data) > max_bytes:
++            raise ValueError(f"File exceeds {max_bytes} byte read limit: {path}")
++        return data
++
+     def get_temp_dir(self) -> str:
+         """Return a shell-safe writable temp dir for local execution.
