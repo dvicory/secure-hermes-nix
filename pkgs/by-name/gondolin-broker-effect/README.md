@@ -603,6 +603,9 @@ Follow-up design and acceptance gates are also documented in `policy-kernel/READ
 
 ## Testing and acceptance
 
+Darwin checks require a native ARM64 host. An Intel or emulated run is not
+equivalent qualification when replacing an unavailable runner image.
+
 Local contract suite and focused backend-neutral authority smoke:
 
 ```sh
