@@ -137,17 +137,16 @@ def request(socket_path: Path, route: str, body: dict | None = None) -> bytes:
         + b"\r\n"
         + payload
     )
-    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    client.settimeout(0.5)
-    client.connect(str(socket_path))
-    client.sendall(headers)
-    chunks = []
-    while True:
-        chunk = client.recv(4096)
-        if not chunk:
-            break
-        chunks.append(chunk)
-    client.close()
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(0.5)
+        client.connect(str(socket_path))
+        client.sendall(headers)
+        chunks = []
+        while True:
+            chunk = client.recv(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
     return b"".join(chunks)
 
 try:
@@ -161,6 +160,8 @@ try:
             if execution_health:
                 break
         except (
+            # A timed Unix connect may report EAGAIN before activation accepts.
+            BlockingIOError,
             BrokenPipeError,
             ConnectionRefusedError,
             ConnectionResetError,

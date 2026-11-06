@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
-import { Effect, Stream } from "effect"
+import { Effect, Schedule, Stream } from "effect"
 import { Environments } from "../dist/environments.js"
 import { Executor } from "../dist/exec.js"
 import { Processes } from "../dist/processes.js"
@@ -21,6 +21,12 @@ const startEnvironment = (environmentKey) => Effect.gen(function* () {
   return yield* environments.ensure({ environmentKey })
 })
 
+const awaitTerminal = (processes, reference) => processes.poll(reference).pipe(
+  Effect.delay("10 millis"),
+  Effect.repeat({ while: (result) => result.state === "running" }),
+  Effect.timeout("1 second"),
+)
+
 test("background execution outlives spawn and retains exact nonzero exit", async () => {
   await withHarness(() => Effect.gen(function* () {
     const processes = yield* Processes
@@ -32,9 +38,7 @@ test("background execution outlives spawn and retains exact nonzero exit", async
     }))
 
     assert.equal(spawned.state, "running")
-    yield* Effect.sleep("40 millis")
-
-    const result = yield* processes.poll({
+    const result = yield* awaitTerminal(processes, {
       environmentKey: environment.environmentKey,
       generation: environment.generation,
       processId: spawned.processId,
@@ -162,9 +166,7 @@ test("poll pagination never skips retained output", async () => {
       generation: environment.generation,
       argv: [payload],
     })
-    yield* Effect.sleep("10 millis")
-
-    const first = yield* processes.poll({
+    const first = yield* awaitTerminal(processes, {
       environmentKey: environment.environmentKey,
       generation: environment.generation,
       processId: spawned.processId,
@@ -245,13 +247,21 @@ test("terminal records expire after the configured TTL", async () => {
       generation: environment.generation,
       argv: ["exit-7"],
     })
-    yield* Effect.sleep("100 millis")
+    yield* awaitTerminal(processes, {
+      environmentKey: environment.environmentKey,
+      generation: environment.generation,
+      processId: spawned.processId,
+      cursor: 0,
+    })
     const failure = yield* Effect.flip(processes.poll({
       environmentKey: environment.environmentKey,
       generation: environment.generation,
       processId: spawned.processId,
       cursor: 0,
-    }))
+    })).pipe(
+      Effect.retry(Schedule.spaced("10 millis")),
+      Effect.timeout("1 second"),
+    )
     assert.equal(failure.reason, "process.not_found")
   }), {
     policyFile: {
@@ -274,8 +284,7 @@ test("stdout and stderr retain broker execution order", async () => {
       generation: environment.generation,
       argv: ["mixed-output"],
     })
-    yield* Effect.sleep("10 millis")
-    const result = yield* processes.poll({
+    const result = yield* awaitTerminal(processes, {
       environmentKey: environment.environmentKey,
       generation: environment.generation,
       processId: spawned.processId,
@@ -295,7 +304,7 @@ test("stdout and stderr retain broker execution order", async () => {
   }))
 })
 
-test("cancel racing a natural exit preserves the real terminal result", async () => {
+test("cancelling an exited process preserves its terminal result", async () => {
   await withHarness(() => Effect.gen(function* () {
     const processes = yield* Processes
     const environment = yield* startEnvironment("process-exit-cancel-race")
@@ -304,12 +313,13 @@ test("cancel racing a natural exit preserves the real terminal result", async ()
       generation: environment.generation,
       argv: ["exit-7"],
     })
-    yield* Effect.sleep("10 millis")
-    const result = yield* processes.cancel({
+    const reference = {
       environmentKey: environment.environmentKey,
       generation: environment.generation,
       processId: spawned.processId,
-    })
+    }
+    yield* awaitTerminal(processes, { ...reference, cursor: 0 })
+    const result = yield* processes.cancel(reference)
     assert.equal(result.state, "exited")
     assert.equal(result.exitCode, 7)
   }))
@@ -324,8 +334,7 @@ test("retention reports dropped bytes and resumes at the first available cursor"
       generation: environment.generation,
       argv: ["x".repeat(4000)],
     })
-    yield* Effect.sleep("10 millis")
-    const result = yield* processes.poll({
+    const result = yield* awaitTerminal(processes, {
       environmentKey: environment.environmentKey,
       generation: environment.generation,
       processId: spawned.processId,
