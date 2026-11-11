@@ -88,13 +88,14 @@ mount, copy, or otherwise expose a parent's workspace files to a child. Use
 native task attachments for human delivery; do not assume a `parents` edge
 satisfies a downstream file-access contract.
 
-## Planned: explicit artifact inputs
+## Explicit artifact inputs
 
-File-consuming task graphs belong to the later multi-task-input workstream. The
-intended design is explicit pre-created input edges with read-only, namespaced
-parent artifacts under `/workspace/inputs/<parent-task>/`, without an implicit
-merge. Until that work lands, dependencies coordinate through summaries and
-metadata rather than filesystem inputs.
+Use `inputs_from` to select board-local producer tasks whose frozen output the
+consumer needs. Inputs are read-only under `/workspace/inputs/<producer-task-id>/`
+and also gate readiness. Retries reuse the frozen input generation; outputs are
+not merged.
+
+## Task state and cancellation
 
 `kanban_block` is not cancellation: it changes task state but does not terminate
 a running worker. Use `max_runtime_seconds` when work needs a runtime bound; the
@@ -189,6 +190,11 @@ upgrades:
 - Board-qualified `taskRun` identities and the exact environment key remain
   aligned: `tests/tools/test_gondolin_backend.py` and
   `tests/tools/test_task_authority_binding.py`.
+- `gondolin-backend.patch` gates streaming in the worker until its handle is
+  published, preserving early stdout/stderr order and exit status without
+  caller-side pipe writes that can deadlock before draining starts. Retain the
+  real-worker publication-barrier regression in
+  `tests/tools/test_gondolin_backend.py` until upstream owns this contract.
 - `output/` selection is preflighted and frozen before completion:
   `tests/tools/test_kanban_tools.py`.
 - Delivery uses attachment manifests only; summary/result prose is never scanned:
