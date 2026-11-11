@@ -621,6 +621,12 @@ nix build \
   .#checks.aarch64-darwin.secure-terminal-effect-policy-http
 ```
 
+An inherited socket can exist before its broker accepts connections. Readiness
+requires a healthy response from each plane, not just a socket path. Keep startup
+probes bounded and close failed clients before retrying.
+For retained process results, wait for the observable terminal state; a fixed
+sleep does not establish completion.
+
 The fake runtime tests prove broker contracts and cleanup logic, not VM containment.
 The focused smoke covers structured denial, canonical capability preparation, approval, same-generation retry, live revocation, and environment restart. It is ordinary Node test logic; the Nix package invokes the same test rather than redefining it.
 The current QA selection is an explicit integration stage, not a production parity
