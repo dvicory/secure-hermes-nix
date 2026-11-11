@@ -18,15 +18,20 @@ close the exact captured environment generation, publish exit 130 only after a
 closed acknowledgement, surface failed acknowledgements, and re-ensure before
 later commands. Reject execution keys that differ from the trusted pre-spawn
 binding so control and execution routes address the same workspace.
+
+Gate output in the worker until the process handle is published. Never flush
+early frames in the caller: completion can close the pipe first, and a full
+pipe can block publication before the caller starts draining. Keep the real
+worker/Unix-HTTP publication-barrier regression across upstream upgrades.
 ---
  model_tools.py                       |   7 +
- tests/tools/test_gondolin_backend.py | 511 +++++++++++++++++++++++++
+ tests/tools/test_gondolin_backend.py | 571 +++++++++++++++++++++++++
  tools/environments/base.py           |  71 +++-
- tools/environments/gondolin.py       | 545 +++++++++++++++++++++++++++
+ tools/environments/gondolin.py       | 537 +++++++++++++++++++++++++++
  tools/file_operations.py             |  82 ++--
  tools/process_registry.py            |  52 +++
  tools/terminal_tool.py               |  21 +-
- 7 files changed, 1241 insertions(+), 48 deletions(-)
+ 7 files changed, 1293 insertions(+), 48 deletions(-)
  create mode 100644 tests/tools/test_gondolin_backend.py
  create mode 100644 tools/environments/gondolin.py
 
@@ -55,10 +60,10 @@ index c59c189e36d9de9101b6bf54b78687e5e786df38..57bba571da49483636ffd4e89ef3ab00
          )
 diff --git a/tests/tools/test_gondolin_backend.py b/tests/tools/test_gondolin_backend.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..488c3bbac7c2588b8956e1a9cc294afa97122d14
+index 0000000000000000000000000000000000000000..8dc2cddec2635fa6a75b70a7ece6472fb42fd843
 --- /dev/null
 +++ b/tests/tools/test_gondolin_backend.py
-@@ -0,0 +1,511 @@
+@@ -0,0 +1,571 @@
 +"""Contract tests for Hermes HTTP/1.1 over Unix-socket Gondolin client."""
 +
 +import base64
@@ -291,6 +296,66 @@ index 0000000000000000000000000000000000000000..488c3bbac7c2588b8956e1a9cc294afa
 +    assert path == "/v1/exec"
 +    assert payload["argv"] == ["/bin/sh", "-c", "echo hello"]
 +    assert payload["generation"] == 1
++
++
++def test_output_before_handle_publication_is_retained(monkeypatch):
++    """Force real NDJSON delivery before the real worker handle is published."""
++    from types import SimpleNamespace
++    from tools.environments import gondolin
++
++    broker, env = make_env()
++    broker.exec_responders = [("stdout", "hello "), ("stdout", "world\n"), ("stderr", "oops\n")]
++    broker.exec_exit_code = 7
++    worker_settled = threading.Event()
++    execution_returned = threading.Event()
++    waiting_events = []
++    handles = []
++    real_handle = gondolin._ThreadedProcessHandle
++
++    class ObservedEvent(threading.Event):
++        def wait(self, timeout=None):
++            # Observe the publication wait without waiting for completion,
++            # which the fixed worker cannot reach until construction returns.
++            waiting_events.append(self)
++            worker_settled.set()
++            return super().wait(timeout)
++
++    class HeldConstructor(real_handle):
++        def __init__(self, exec_fn, cancel_fn):
++            def observed_exec():
++                try:
++                    return exec_fn()
++                finally:
++                    execution_returned.set()
++                    worker_settled.set()
++
++            super().__init__(observed_exec, cancel_fn)
++            handles.append(self)
++            assert worker_settled.wait(timeout=5), "worker never reached output or completion"
++            if execution_returned.is_set():
++                # The broken adapter buffers every frame and closes its pipe
++                # before construction returns; force that ordering exactly.
++                assert self._done.wait(timeout=5), "worker did not close its pipe"
++                assert self._write_fd is None
++
++    monkeypatch.setattr(
++        gondolin, "threading", SimpleNamespace(Event=ObservedEvent, Lock=threading.Lock)
++    )
++    monkeypatch.setattr(gondolin, "_ThreadedProcessHandle", HeldConstructor)
++    try:
++        proc = env._run_bash("echo hello", timeout=30)
++        result = env._wait_for_process(proc, timeout=5)
++        assert result == {"output": "hello world\noops\n", "returncode": 7}
++        assert proc._done.is_set()
++        assert proc._write_fd is None
++    finally:
++        for event in waiting_events:
++            event.set()
++        env.cleanup()
++        broker.close()
++        for handle in handles:
++            handle.stdout.close()
++        os.rmdir(os.path.dirname(broker.socket_path))
 +
 +
 +def test_run_bash_exposes_output_before_broker_exit():
@@ -676,10 +741,10 @@ index 1b20cfa90ee0cd0367829436f942f2f40cae8b2b..736416a3331e14282a87626b9d0ec7d7
          self._done.wait(timeout=timeout)
 diff --git a/tools/environments/gondolin.py b/tools/environments/gondolin.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..b7bf44f698beab0693abbe07275070d3c5f6ee7b
+index 0000000000000000000000000000000000000000..419c4d235e630a87efdf02fb211dc5e9d31638f5
 --- /dev/null
 +++ b/tools/environments/gondolin.py
-@@ -0,0 +1,545 @@
+@@ -0,0 +1,537 @@
 +"""Gondolin Effect broker terminal backend.
 +
 +Uses ordinary HTTP/1.1 over the profile's mode-0600 Unix socket. Hermes supplies
@@ -1071,24 +1136,20 @@ index 0000000000000000000000000000000000000000..b7bf44f698beab0693abbe07275070d3
 +        cancel_acknowledged = threading.Event()
 +        cancel_error: list[Exception | None] = [None]
 +
-+        stream_lock = threading.Lock()
++        stream_ready = threading.Event()
 +        stream_handle: dict[str, _ThreadedProcessHandle | None] = {"handle": None}
 +        cancel_handle: dict[str, _ThreadedProcessHandle | None] = {"handle": None}
-+        pending_chunks: list[str] = []
 +
 +        def on_open(response: httpx.Response) -> None:
 +            with state_lock:
 +                state["response"] = response
 +
 +        def on_output(chunk: str) -> None:
-+            # The worker can receive the first broker frame before the handle
-+            # constructor returns. Buffer only that tiny hand-off window; all
-+            # subsequent frames go directly to the process drain pipe.
-+            with stream_lock:
-+                handle = stream_handle["handle"]
-+                if handle is None:
-+                    pending_chunks.append(chunk)
-+                    return
++            # Wait in the worker, not the caller: publication must precede
++            # writes and pipe closure, and only the caller can start draining.
++            stream_ready.wait()
++            handle = stream_handle["handle"]
++            assert handle is not None
 +            handle.write_output(chunk)
 +
 +        def exec_fn():
@@ -1191,12 +1252,8 @@ index 0000000000000000000000000000000000000000..b7bf44f698beab0693abbe07275070d3
 +
 +        handle = _ThreadedProcessHandle(exec_fn, cancel_fn)
 +        cancel_handle["handle"] = handle
-+        with stream_lock:
-+            stream_handle["handle"] = handle
-+            pending = pending_chunks[:]
-+            pending_chunks.clear()
-+        for chunk in pending:
-+            handle.write_output(chunk)
++        stream_handle["handle"] = handle
++        stream_ready.set()
 +        return handle
 +
 +    def cleanup(self):
